@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  stats-api:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@stats-db:5432/players_stats
+      - REDIS_URL=redis://stats-redis:6379/0
+      - CELERY_BROKER_URL=redis://stats-redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://stats-redis:6379/0
+    depends_on:
+      - stats-db
+      - stats-redis
+    volumes:
+      - ./app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 3001 --reload
+
+  stats-worker:
+    build: .
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@stats-db:5432/players_stats
+      - REDIS_URL=redis://stats-redis:6379/0
+      - CELERY_BROKER_URL=redis://stats-redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://stats-redis:6379/0
+    depends_on:
+      - stats-db
+      - stats-redis
+    volumes:
+      - ./app:/app/app
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+
+  stats-db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=players_stats
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - stats-db-data:/var/lib/postgresql/data
+
+  stats-redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - stats-redis-data:/data
+
+volumes:
+  stats-db-data:
+  stats-redis-data:
